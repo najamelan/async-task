@@ -62,7 +62,11 @@ pub(crate) struct TaskLayout {
 }
 
 /// Raw pointers to the fields inside a task.
-pub(crate) struct RawTask<F, R, S, T> {
+pub(crate) struct RawTask<'a, F, R, S, T>
+
+where
+    R: 'a,
+{
     /// The task header.
     pub(crate) header: *const Header,
 
@@ -77,20 +81,23 @@ pub(crate) struct RawTask<F, R, S, T> {
 
     /// The output of the future.
     pub(crate) output: *mut R,
+
+    pub(crate) _marker: PhantomData<&'a F>,
 }
 
-impl<F, R, S, T> Copy for RawTask<F, R, S, T> {}
+impl<F, R, S, T> Copy for RawTask<'_, F, R, S, T> {}
 
-impl<F, R, S, T> Clone for RawTask<F, R, S, T> {
+impl<F, R, S, T> Clone for RawTask<'_, F, R, S, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<F, R, S, T> RawTask<F, R, S, T>
+impl<'a, F, R, S, T> RawTask<'a, F, R, S, T>
 where
-    F: Future<Output = R> + 'static,
-    S: Fn(Task<T>) + Send + Sync + 'static,
+    R: 'a,
+    F: Future<Output = R> + 'a,
+    S: Fn(Task<T>) + Send + Sync + 'a,
 {
     const RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
         Self::clone_waker,
@@ -156,6 +163,7 @@ where
                 schedule: p.add(task_layout.offset_s) as *const S,
                 future: p.add(task_layout.offset_f) as *mut F,
                 output: p.add(task_layout.offset_r) as *mut R,
+                _marker: PhantomData,
             }
         }
     }
@@ -498,7 +506,7 @@ where
 
         // Poll the inner future, but surround it with a guard that closes the task in case polling
         // panics.
-        let guard = Guard(raw);
+        let guard = Guard(raw, PhantomData);
         let poll = <F as Future>::poll(Pin::new_unchecked(&mut *raw.future), cx);
         mem::forget(guard);
 
@@ -609,15 +617,15 @@ where
         return false;
 
         /// A guard that closes the task if polling its future panics.
-        struct Guard<F, R, S, T>(RawTask<F, R, S, T>)
+        struct Guard<'a, F, R, S, T>(RawTask<'a, F, R, S, T>, PhantomData<&'a F>)
         where
-            F: Future<Output = R> + 'static,
-            S: Fn(Task<T>) + Send + Sync + 'static;
+            F: Future<Output = R>,
+            S: Fn(Task<T>) + Send + Sync + 'a;
 
-        impl<F, R, S, T> Drop for Guard<F, R, S, T>
+        impl<'a, F, R, S, T> Drop for Guard<'a, F, R, S, T>
         where
-            F: Future<Output = R> + 'static,
-            S: Fn(Task<T>) + Send + Sync + 'static,
+            F: Future<Output = R> + 'a,
+            S: Fn(Task<T>) + Send + Sync + 'a,
         {
             fn drop(&mut self) {
                 let raw = self.0;

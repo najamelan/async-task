@@ -9,13 +9,13 @@ use futures::executor;
 use lazy_static::lazy_static;
 
 type Task = async_task::Task<()>;
-type JoinHandle<T> = async_task::JoinHandle<'static, T, ()>;
+type JoinHandle<'a, T> = async_task::JoinHandle<'a, T, ()>;
 
 /// Spawns a future on the executor.
-fn spawn<F, R>(future: F) -> JoinHandle<R>
+fn spawn<'a, F, R>(future: F) -> JoinHandle<'a, R>
 where
-    F: Future<Output = R> + Send + 'static,
-    R: Send + 'static,
+    F: Future<Output = R> + Send + 'a,
+    R: Send + 'a,
 {
     lazy_static! {
         // A channel that holds scheduled tasks.
@@ -45,9 +45,16 @@ where
 }
 
 fn main() {
+
+    let borrow_me = 5;
+
+    let task = async {
+        println!("Hello, world: {}!", borrow_me);
+    };
+
     // Spawn a future and await its result.
-    let handle = spawn(async {
-        println!("Hello, world!");
-    });
+    // executor::block_on(task);
+
+    let handle = spawn( task );
     executor::block_on(handle);
 }

@@ -15,20 +15,21 @@ use crate::state::*;
 ///
 /// * `None` indicates the task has panicked or was canceled.
 /// * `Some(result)` indicates the task has completed with `result` of type `R`.
-pub struct JoinHandle<R, T> {
+pub struct JoinHandle<'a, R, T>
+{
     /// A raw task pointer.
     pub(crate) raw_task: NonNull<()>,
 
     /// A marker capturing generic types `R` and `T`.
-    pub(crate) _marker: PhantomData<(R, T)>,
+    pub(crate) _marker: PhantomData<(R, T, &'a R)>,
 }
 
-unsafe impl<R: Send, T> Send for JoinHandle<R, T> {}
-unsafe impl<R, T> Sync for JoinHandle<R, T> {}
+unsafe impl<'a, R: Send, T> Send for JoinHandle<'a, R, T> {}
+unsafe impl<'a, R, T> Sync for JoinHandle<'a, R, T> {}
 
-impl<R, T> Unpin for JoinHandle<R, T> {}
+impl<'a, R, T> Unpin for JoinHandle<'a, R, T> {}
 
-impl<R, T> JoinHandle<R, T> {
+impl<'a, R, T> JoinHandle<'a, R, T> {
     /// Cancels the task.
     ///
     /// If the task has already completed, calling this method will have no effect.
@@ -104,7 +105,7 @@ impl<R, T> JoinHandle<R, T> {
     }
 }
 
-impl<R, T> Drop for JoinHandle<R, T> {
+impl<'a, R, T> Drop for JoinHandle<'a, R, T> {
     fn drop(&mut self) {
         let ptr = self.raw_task.as_ptr();
         let header = ptr as *const Header;
@@ -185,7 +186,7 @@ impl<R, T> Drop for JoinHandle<R, T> {
     }
 }
 
-impl<R, T> Future for JoinHandle<R, T> {
+impl<'a, R, T> Future for JoinHandle<'a, R, T> {
     type Output = Option<R>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -266,7 +267,7 @@ impl<R, T> Future for JoinHandle<R, T> {
     }
 }
 
-impl<R, T> fmt::Debug for JoinHandle<R, T> {
+impl<'a, R, T> fmt::Debug for JoinHandle<'a, R, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr = self.raw_task.as_ptr();
         let header = ptr as *const Header;

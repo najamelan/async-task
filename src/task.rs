@@ -47,12 +47,12 @@ use crate::JoinHandle;
 /// // Create a task with the future and the schedule function.
 /// let (task, handle) = async_task::spawn(future, schedule, ());
 /// ```
-pub fn spawn<F, R, S, T>(future: F, schedule: S, tag: T) -> (Task<T>, JoinHandle<R, T>)
+pub fn spawn<'a, F, R, S, T>(future: F, schedule: S, tag: T) -> (Task<T>, JoinHandle<'a, R, T>)
 where
-    F: Future<Output = R> + Send + 'static,
-    R: Send + 'static,
-    S: Fn(Task<T>) + Send + Sync + 'static,
-    T: Send + Sync + 'static,
+    F: Future<Output = R> + Send + 'a,
+    R: Send + 'a,
+    S: Fn(Task<T>) + Send + Sync + 'a,
+    T: Send + Sync + 'a,
 {
     // Allocate large futures on the heap.
     let raw_task = if mem::size_of::<F>() >= 2048 {
@@ -113,12 +113,12 @@ where
 /// let (task, handle) = async_task::spawn_local(future, schedule, ());
 /// ```
 #[cfg(feature = "std")]
-pub fn spawn_local<F, R, S, T>(future: F, schedule: S, tag: T) -> (Task<T>, JoinHandle<R, T>)
+pub fn spawn_local<'a, F, R, S, T>(future: F, schedule: S, tag: T) -> (Task<T>, JoinHandle<'a, R, T>)
 where
-    F: Future<Output = R> + 'static,
-    R: 'static,
-    S: Fn(Task<T>) + Send + Sync + 'static,
-    T: Send + Sync + 'static,
+    F: Future<Output = R> + 'a,
+    R: 'a,
+    S: Fn(Task<T>) + Send + Sync + 'a,
+    T: Send + Sync + 'a,
 {
     extern crate std;
 
